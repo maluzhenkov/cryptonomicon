@@ -37,7 +37,7 @@
             v-for="cryptItem in cryptoCurrencyList"
             :key="cryptItem.id"
             :class="{ 'outline-black': selectedCrypt?.id === cryptItem.id }"
-            class="bg-white overflow-hidden shadow rounded-lg  cursor-pointer"
+            class="bg-white overflow-hidden shadow rounded-lg cursor-pointer"
             @click="onSelectCtypt(cryptItem)"
           >
             <div class="px-4 py-5 sm:p-6 text-center">
@@ -96,5 +96,3 @@ export default {
   }
 };
 </script>
-
-<style src="./assets/main.css"></style>
