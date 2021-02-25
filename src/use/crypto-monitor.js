@@ -1,12 +1,21 @@
-import { ref } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { uuid, currencyNormalize } from "@/services/utils";
-import { getPrice } from "@/services/api";
+import { getPrice, getCoinList } from "@/services/api";
 
 export default function useCryptoMonitor() {
   const cryptoCurrencyName = ref("");
   const cryptoCurrencyList = ref([]);
   const selectedCrypt = ref(null);
+  const isLoading = ref(false);
   const graph = ref([]);
+  const coinList = ref([]);
+
+  onMounted(async () => {
+    isLoading.value = true;
+    const rawCoinList = await getCoinList();
+    isLoading.value = false;
+    coinList.value = Object.values(rawCoinList);
+  });
 
   async function addCryptoCurrency() {
     if (cryptoCurrencyName.value) {
@@ -27,7 +36,7 @@ export default function useCryptoMonitor() {
           const price = await getPrice(item.name);
           if (price) {
             cryptoCurrencyList.value.find(
-              cryptoItem => cryptoItem.id === item.id
+              (cryptoItem) => cryptoItem.id === item.id
             ).price = currencyNormalize(price);
 
             if (selectedCrypt.value?.id === item.id) {
@@ -38,6 +47,20 @@ export default function useCryptoMonitor() {
       }
     }
   }
+  const autocomplite = computed(() => {
+    const searchValue = cryptoCurrencyName.value.toLowerCase();
+    return searchValue
+      ? coinList.value
+          .filter((item) => {
+            return (
+              item.Symbol.toLowerCase().includes(searchValue) ||
+              item.FullName.toLowerCase().includes(searchValue)
+            );
+          })
+          .map((item) => item.Symbol)
+          .slice(0, 4)
+      : [];
+  });
 
   function onSelectCtypt(item) {
     selectedCrypt.value = item;
@@ -46,7 +69,7 @@ export default function useCryptoMonitor() {
 
   function removeCryptoCurrency(item) {
     cryptoCurrencyList.value = cryptoCurrencyList.value.filter(
-      cryptItem => cryptItem.id !== item.id
+      (cryptItem) => cryptItem.id !== item.id
     );
     clearInterval(item.interval);
 
@@ -58,7 +81,7 @@ export default function useCryptoMonitor() {
   function normalizeGraph() {
     const maxValue = Math.max(...graph.value);
     const minValue = Math.min(...graph.value);
-    return graph.value.map(price => {
+    return graph.value.map((price) => {
       return {
         height: 5 + ((price - minValue) * 95) / (maxValue - minValue),
         price
@@ -73,6 +96,8 @@ export default function useCryptoMonitor() {
     cryptoCurrencyList,
     selectedCrypt,
     onSelectCtypt,
-    normalizeGraph
+    normalizeGraph,
+    autocomplite,
+    isLoading
   };
 }
