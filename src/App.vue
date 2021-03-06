@@ -68,6 +68,7 @@
               @click="add"
               type="button"
               class="ml-4 mt-5 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              :disabled="!ticker"
             >
               <img
                 class="-ml-0.5 mr-2 h-6 w-6"
@@ -145,7 +146,7 @@
                 {{ ticker.name }} - USD
               </dt>
               <dd class="mt-1 text-3xl font-semibold text-gray-900">
-                {{ ticker.price }}
+                {{ formatPrice(ticker.price) }}
               </dd>
             </div>
             <div class="w-full border-t border-gray-200"></div>
@@ -191,10 +192,8 @@
 
 <script>
 import * as api from "@/services/api";
-import { unique } from "@/services/utils";
 
 const MAX_PER_PAGE = 6;
-const TIME_TO_INTERVAL_MS = 5000;
 const STORAGE_NAME = "cryptonomicon-list";
 
 export default {
@@ -222,11 +221,6 @@ export default {
 
     tickers() {
       localStorage.setItem(STORAGE_NAME, JSON.stringify(this.tickers));
-
-      const tickersName = unique(this.tickers.map(({ name }) => name)).join(
-        ","
-      );
-      this.subscribeToUpdates(tickersName);
     },
 
     paginatedTickers() {
@@ -325,10 +319,11 @@ export default {
     const tickersData = localStorage.getItem(STORAGE_NAME);
     if (tickersData) {
       this.tickers = JSON.parse(tickersData);
-      const tickers = unique(this.tickers.map(({ name }) => name)).join(",");
-      if (tickers) {
-        this.subscribeToUpdates(tickers);
-      }
+      this.tickers.forEach((ticker) => {
+        api.subscribeToTicker(ticker.name, (newPrice) =>
+          this.updateTicker(ticker.name, newPrice)
+        );
+      });
     }
 
     api
@@ -341,24 +336,16 @@ export default {
       });
   },
   methods: {
-    subscribeToUpdates(tickersName) {
-      if (this.interval) {
-        clearInterval(this.interval);
-      }
-      if (tickersName) {
-        this.interval = setInterval(async () => {
-          const data = await api.getPrices(tickersName);
-          Object.entries(data).forEach((item) => {
-            this.tickers.find((t) => t.name === item[0]).price =
-              item[1].USD > 1
-                ? item[1].USD.toFixed(2)
-                : item[1].USD.toPrecision(2);
-            if (this.selectedTicker?.name === item[0]) {
-              this.graph.push(item[1].USD);
-            }
-          });
-        }, TIME_TO_INTERVAL_MS);
-      }
+    updateTicker(tickerName, price) {
+      this.tickers
+        .filter((t) => t.name === tickerName)
+        .forEach((t) => {
+          if (t === this.selectedTicker) {
+            this.graph.push(price);
+          }
+
+          t.price = price;
+        });
     },
 
     add() {
@@ -379,6 +366,10 @@ export default {
 
       this.tickers = [...this.tickers, currentTicker];
 
+      api.subscribeToTicker(currentTicker.name, (newPrice) =>
+        this.updateTicker(currentTicker.name, newPrice)
+      );
+
       this.filter = "";
       this.ticker = "";
     },
@@ -398,6 +389,15 @@ export default {
       if (this.selectedTicker === tickerToRemove) {
         this.selectedTicker = null;
       }
+
+      api.unsubscribeFromTicker(tickerToRemove.name);
+    },
+
+    formatPrice(price) {
+      if (price === "-") {
+        return price;
+      }
+      return price > 1 ? price.toFixed(2) : price.toPrecision(2);
     }
   }
 };
