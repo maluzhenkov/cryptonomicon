@@ -169,7 +169,10 @@
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
           {{ selectedTicker.name }} - USD
         </h3>
-        <div class="flex items-end border-gray-600 border-b border-l h-64">
+        <div
+          ref="graph"
+          class="flex items-end border-gray-600 border-b border-l h-64"
+        >
           <div
             v-for="(bar, idx) in normalizedGraph"
             :key="idx"
@@ -191,6 +194,10 @@
 </template>
 
 <script>
+// [H] 5. Обработка ошибок API | Критичность: 5
+// [ ] 9. localStorage и анонимные вкладки | Критичность: 3
+// [ ] 10. Магические строки и числа (URL, 5000 миллисекунд задержки, ключ локал стораджа, количество на странице) |  Критичность: 1
+
 import * as api from "@/services/api";
 
 const MAX_PER_PAGE = 6;
@@ -201,22 +208,29 @@ export default {
   data() {
     return {
       isLoading: false,
+
       valid: {
         error: false
       },
+
       ticker: "",
       filter: "",
+
       tickers: [],
       selectedTicker: null,
+
       graph: [],
+      maxGraphElements: 1,
+
       page: 1,
-      allCoins: [],
-      interval: null
+
+      allCoins: []
     };
   },
   watch: {
     selectedTicker() {
       this.graph = [];
+      this.$nextTick().then(this.calculateMaxGraphElements);
     },
 
     tickers() {
@@ -335,13 +349,30 @@ export default {
         this.isLoading = false;
       });
   },
+  mounted() {
+    window.addEventListener("resize", this.calculateMaxGraphElements);
+  },
+  beforeUnmount() {
+    window.removeEventListener("resize", this.calculateMaxGraphElements);
+  },
+
   methods: {
+    calculateMaxGraphElements() {
+      if (!this.$refs.graph) {
+        return;
+      }
+
+      this.maxGraphElements = this.$refs.graph.clientWidth / 38;
+    },
     updateTicker(tickerName, price) {
       this.tickers
         .filter((t) => t.name === tickerName)
         .forEach((t) => {
           if (t === this.selectedTicker) {
             this.graph.push(price);
+            while (this.graph.length > this.maxGraphElements) {
+              this.graph.shift();
+            }
           }
 
           t.price = price;
@@ -349,25 +380,26 @@ export default {
     },
 
     add() {
-      const currentTicker = {
+      const newTicker = {
         name: this.ticker,
         price: "-"
       };
 
       const index = this.tickers.findIndex(
-        (item) => item.name === currentTicker.name
+        (item) => item.name === newTicker.name
       );
 
       if (index !== -1) {
         this.valid.error = true;
         return;
       }
+
       this.valid.error = false;
 
-      this.tickers = [...this.tickers, currentTicker];
+      this.tickers = [...this.tickers, newTicker];
 
-      api.subscribeToTicker(currentTicker.name, (newPrice) =>
-        this.updateTicker(currentTicker.name, newPrice)
+      api.subscribeToTicker(newTicker.name, (newPrice) =>
+        this.updateTicker(newTicker.name, newPrice)
       );
 
       this.filter = "";

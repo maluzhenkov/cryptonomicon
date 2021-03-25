@@ -1,15 +1,3 @@
-export async function getPrices(name) {
-  try {
-    const response = await fetch(
-      `https://min-api.cryptocompare.com/data/pricemulti?fsyms=${name}&tsyms=USD`
-    );
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error(error);
-  }
-}
-
 export async function getCoinList() {
   try {
     const response = await fetch(
@@ -29,14 +17,15 @@ const socket = new WebSocket(
 );
 
 socket.addEventListener("message", (e) => {
-  const { TYPE: type, FROMSYMBOL: currency, PRICE: newPrice } = JSON.parse(
+  const { TYPE: type, FROMSYMBOL: ticker, PRICE: newPrice } = JSON.parse(
     e.data
   );
+
   if (type !== AGGREGATE_INDEX || newPrice === undefined) {
     return;
   }
 
-  const handlers = tickersHandlers.get(currency) ?? [];
+  const handlers = tickersHandlers.get(ticker) ?? [];
   handlers.forEach((fn) => fn(newPrice));
 });
 
